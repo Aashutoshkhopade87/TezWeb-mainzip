@@ -376,7 +376,7 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
                 onClick={handleBackToPhone}
                 className="text-blue-600 hover:text-blue-700 font-medium"
               >
-                ← Change Number
+                ← Change {loginMethod === 'phone' ? 'Number' : 'Email'}
               </button>
               <button
                 onClick={handleSendOTP}
