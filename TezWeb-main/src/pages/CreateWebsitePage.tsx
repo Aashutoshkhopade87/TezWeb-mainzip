@@ -16,9 +16,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, Sparkles, ArrowLeft, Lightbulb } from 'lucide-react';
-import { generateWebsite, saveWebsiteToStorage } from '@/lib/websiteGenerator';
+import { generateWebsite, saveWebsiteToStorage, getUserWebsites } from '@/lib/websiteGenerator';
 import { GeneratorFormData } from '@/types/website';
 import VoiceInput from '@/components/features/VoiceInput';
+import { getCurrentUser } from '@/lib/auth';
+import { canCreateWebsite, enforceExpiryForUser, getOrCreateSubscription, getPlanWebsiteLimit } from '@/lib/subscription';
+import { UserSubscription } from '@/types/website';
+import { toast } from 'sonner';
 
 const formSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters'),
@@ -35,13 +39,29 @@ export default function CreateWebsitePage() {
   const location = useLocation();
   const [isGenerating, setIsGenerating] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Check authentication on mount
   useEffect(() => {
-    if (!isAuthenticated()) {
-      setShowLoginModal(true);
-    }
+    const bootstrap = async () => {
+      if (!isAuthenticated()) {
+        setShowLoginModal(true);
+        return;
+      }
+
+      const user = getCurrentUser();
+      if (!user) return;
+
+      const activeSubscription = await enforceExpiryForUser(user.uid);
+      setSubscription(activeSubscription);
+
+      const userWebsites = getUserWebsites(user.uid);
+      setLimitReached(!canCreateWebsite(activeSubscription, userWebsites.length));
+    };
+
+    void bootstrap();
   }, []);
   
   // Get selected template from navigation state
@@ -83,6 +103,23 @@ export default function CreateWebsitePage() {
 
   const onSubmit = async (data: GeneratorFormData) => {
     console.log('Form submitted:', data);
+
+    const user = getCurrentUser();
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    const latestSubscription = await getOrCreateSubscription(user.uid);
+    setSubscription(latestSubscription);
+
+    const userWebsites = getUserWebsites(user.uid);
+    if (!canCreateWebsite(latestSubscription, userWebsites.length)) {
+      toast.error('Website limit reached for your current plan. Please upgrade.');
+      setLimitReached(true);
+      return;
+    }
+
     setIsGenerating(true);
 
     // Simulate AI generation delay
@@ -153,6 +190,14 @@ export default function CreateWebsitePage() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 border border-gray-100">
+            {subscription && (
+              <div className="mb-4 p-3 rounded-lg border bg-blue-50 border-blue-200 text-sm text-blue-900">
+                Plan: <strong className="capitalize">{subscription.plan}</strong> • Website limit: <strong>{getPlanWebsiteLimit(subscription)}</strong>
+                {limitReached && (
+                  <span className="block mt-1 text-red-600">Limit reached. Upgrade to continue creating websites.</span>
+                )}
+              </div>
+            )}
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Business Name */}
               <div className="space-y-2">
@@ -270,7 +315,7 @@ export default function CreateWebsitePage() {
               {/* Submit Button */}
               <Button
                 type="submit"
-                disabled={isGenerating}
+                disabled={isGenerating || limitReached}
                 className="w-full h-12 text-base bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               >
                 {isGenerating ? (

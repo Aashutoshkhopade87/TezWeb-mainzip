@@ -57,6 +57,7 @@ export const generateWebsite = (formData: GeneratorFormData): WebsiteData => {
     })),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    isPublished: false,
   };
 
   return website;
