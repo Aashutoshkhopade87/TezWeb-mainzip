@@ -5,7 +5,7 @@ import { ArrowLeft, Sparkles, Check, Eye } from 'lucide-react';
 import { TEMPLATE_PREVIEWS } from '@/constants/templateStyles';
 import { BusinessCategory, TemplateStyle } from '@/types/website';
 import TemplatePreviewDialog from '@/components/features/TemplatePreviewDialog';
-import { isAuthenticated } from '@/lib/auth';
+import { getCurrentUser, isAuthenticated } from '@/lib/auth';
 import LoginModal from '@/components/features/LoginModal';
 import {
   Select,
@@ -14,6 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { canCreateWebsite, enforceExpiryForUser } from '@/lib/subscription';
+import { getUserWebsites } from '@/lib/websiteGenerator';
+import { toast } from 'sonner';
 
 export default function TemplateGalleryPage() {
   const navigate = useNavigate();
@@ -42,19 +45,35 @@ export default function TemplateGalleryPage() {
     setSelectedTemplate({ category, style });
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!selectedTemplate) return;
 
-    if (isAuthenticated()) {
-      navigate('/create', {
-        state: {
-          selectedCategory: selectedTemplate.category,
-          selectedStyle: selectedTemplate.style,
-        },
-      });
-    } else {
+    if (!isAuthenticated()) {
       setShowLoginModal(true);
+      return;
     }
+
+    const user = getCurrentUser();
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    const subscription = await enforceExpiryForUser(user.uid);
+    const userWebsites = getUserWebsites(user.uid);
+
+    if (!canCreateWebsite(subscription, userWebsites.length)) {
+      toast.error('Website limit reached. Upgrade your plan to create more websites.');
+      navigate('/dashboard');
+      return;
+    }
+
+    navigate('/create', {
+      state: {
+        selectedCategory: selectedTemplate.category,
+        selectedStyle: selectedTemplate.style,
+      },
+    });
   };
 
   const handleLoginSuccess = () => {

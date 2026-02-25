@@ -40,7 +40,7 @@ export const verifyOTP = async (phoneNumber: string, otp: string): Promise<{ suc
   // For mock: accept any 6-digit OTP
   if (otp.length === 6) {
     const user: User = {
-      uid: `user-${Date.now()}`,
+      uid: `user-${phoneNumber.replace(/[^0-9]/g, '')}`,
       phoneNumber,
       createdAt: new Date().toISOString(),
     };

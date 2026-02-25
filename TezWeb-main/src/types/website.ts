@@ -73,6 +73,7 @@ export interface WebsiteData {
   gallery: GalleryImage[];
   createdAt: string;
   updatedAt?: string;
+  isPublished?: boolean;
 }
 
 export interface GeneratorFormData {
@@ -84,14 +85,14 @@ export interface GeneratorFormData {
   customPrompt?: string;
 }
 
-export type BusinessCategory = 
-  | 'shop' 
-  | 'bakery' 
-  | 'clothing' 
-  | 'electronics' 
-  | 'restaurant' 
-  | 'salon' 
-  | 'pharmacy' 
+export type BusinessCategory =
+  | 'shop'
+  | 'bakery'
+  | 'clothing'
+  | 'electronics'
+  | 'restaurant'
+  | 'salon'
+  | 'pharmacy'
   | 'other';
 
 export type TemplateStyle = 'modern' | 'traditional' | 'minimal';
@@ -103,4 +104,17 @@ export interface TemplatePreview {
   description: string;
   previewImage: string;
   primaryColor: string;
+}
+
+export type BillingPlan = 'trial' | 'pro';
+
+export interface UserSubscription {
+  userId: string;
+  plan: BillingPlan;
+  trialStartedAt: string;
+  trialEndsAt: string;
+  proStartedAt?: string;
+  proEndsAt?: string;
+  status: 'active' | 'expired';
+  updatedAt: string;
 }

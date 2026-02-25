@@ -59,3 +59,28 @@ This project is built with:
 ## How can I deploy this project?
 
 Simply open [OnSpace]() and click on Share -> Publish.
+
+## Monetization setup (Trial + Pro)
+
+This project now includes:
+- 7-day free trial (1 website)
+- Pro plan at ₹199/month (2 websites)
+- Auto-unpublish on expiry
+- Upgrade flow via Razorpay checkout
+- Plan status sync via Firestore (with localStorage fallback)
+
+### Required env variables
+
+Create `.env` with:
+
+```bash
+VITE_RAZORPAY_KEY_ID=rzp_test_xxxxxxxx
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+```
+
+If Firebase env vars are not provided, subscription state still works locally via localStorage.
