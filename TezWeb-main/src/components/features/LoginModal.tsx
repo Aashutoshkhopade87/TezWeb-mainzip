@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RecaptchaVerifier } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,7 @@ import {
 } from '@/components/ui/select';
 import { X, Smartphone, Shield, Loader2, Mail } from 'lucide-react';
 import { sendOTP, verifyOTP } from '@/lib/auth';
+import { auth, hasFirebaseConfig } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 interface LoginModalProps {
@@ -24,6 +26,8 @@ type LoginMethod = 'phone' | 'email';
 
 export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps) {
   const navigate = useNavigate();
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
   const [step, setStep] = useState<LoginStep>('phone');
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('phone');
   const [countryCode, setCountryCode] = useState('+91');
@@ -32,6 +36,7 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [identifier, setIdentifier] = useState('');
+  const [emailLinkSent, setEmailLinkSent] = useState(false);
 
   const countryCodes = [
     { code: '+91', country: 'India', flag: '🇮🇳' },
@@ -40,6 +45,33 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
     { code: '+971', country: 'UAE', flag: '🇦🇪' },
     { code: '+65', country: 'Singapore', flag: '🇸🇬' },
   ];
+
+  useEffect(() => {
+    return () => {
+      if (recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current.clear();
+        recaptchaVerifierRef.current = null;
+      }
+    };
+  }, []);
+
+  const ensureRecaptcha = async () => {
+    if (!hasFirebaseConfig || !auth) {
+      return undefined;
+    }
+
+    if (recaptchaVerifierRef.current) {
+      return recaptchaVerifierRef.current;
+    }
+
+    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+    });
+
+    await verifier.render();
+    recaptchaVerifierRef.current = verifier;
+    return verifier;
+  };
 
   const handleSendOTP = async () => {
     if (loginMethod === 'phone') {
@@ -64,11 +96,18 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
     setIdentifier(loginIdentifier);
 
     try {
-      const result = await sendOTP(loginIdentifier, loginMethod);
-      
+      const recaptchaVerifier = loginMethod === 'phone' ? await ensureRecaptcha() : undefined;
+      const result = await sendOTP(loginIdentifier, loginMethod, { recaptchaVerifier });
+
       if (result.success) {
-        toast.success(`OTP sent to your ${loginMethod === 'phone' ? 'mobile number' : 'email'}!`);
-        setStep('otp');
+        if (result.requiresOTP) {
+          toast.success(`OTP sent to your ${loginMethod === 'phone' ? 'mobile number' : 'email'}!`);
+          setStep('otp');
+          return;
+        }
+
+        toast.success(result.message);
+        setEmailLinkSent(true);
       } else {
         toast.error(result.message || 'Failed to send OTP');
       }
@@ -90,13 +129,12 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
 
     try {
       const result = await verifyOTP(identifier, otp, loginMethod);
-      
+
       if (result.success && result.user) {
         toast.success('Login successful! 🎉');
         setTimeout(() => {
           onLoginSuccess();
           onClose();
-          // Redirect to dashboard after successful login
           navigate('/dashboard');
         }, 500);
       } else {
@@ -121,12 +159,12 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
     setPhoneNumber('');
     setEmail('');
     setOtp('');
+    setEmailLinkSent(false);
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative animate-in zoom-in-95 duration-200">
-        {/* Close Button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
@@ -134,7 +172,6 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
           <X className="w-5 h-5 text-gray-500" />
         </button>
 
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full mb-4">
             {step === 'phone' ? (
@@ -155,16 +192,14 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
               : 'Verify OTP'}
           </h2>
           <p className="text-gray-600 text-sm">
-            {step === 'phone' 
+            {step === 'phone'
               ? loginMethod === 'phone'
                 ? 'Enter your mobile number to continue'
                 : 'Enter your email to continue'
-              : `We sent a code to ${identifier}`
-            }
+              : `We sent a code to ${identifier}`}
           </p>
         </div>
 
-        {/* Phone Number Step */}
         {step === 'phone' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 bg-gray-100 p-1 rounded-lg">
@@ -262,17 +297,17 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
               onClick={handleSendOTP}
               disabled={
                 isLoading ||
-                (loginMethod === 'phone'
-                  ? phoneNumber.length < 10
-                  : email.trim().length === 0)
+                (loginMethod === 'phone' ? phoneNumber.length < 10 : email.trim().length === 0)
               }
               className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold"
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Sending OTP...
+                  {loginMethod === 'email' ? 'Sending link...' : 'Sending OTP...'}
                 </>
+              ) : loginMethod === 'email' ? (
+                'Send Login Link'
               ) : (
                 'Send OTP'
               )}
@@ -280,14 +315,21 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-xs text-blue-800">
-                <strong>🔒 Secure Login:</strong> We send a 6-digit OTP to verify your{' '}
-                {loginMethod === 'phone' ? 'mobile number' : 'email'}.
+                <strong>🔒 Secure Login:</strong>{' '}
+                {loginMethod === 'phone'
+                  ? 'OTP verification uses Firebase Phone Auth.'
+                  : 'Email login uses Firebase magic link sign-in.'}
               </p>
             </div>
+
+            {emailLinkSent && (
+              <p className="text-sm text-green-700 text-center">
+                Login link sent. Please open your email and tap the link to complete sign-in.
+              </p>
+            )}
           </div>
         )}
 
-        {/* OTP Verification Step */}
         {step === 'otp' && (
           <div className="space-y-6">
             <div className="space-y-2">
@@ -310,7 +352,7 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
                 autoFocus
               />
               <p className="text-xs text-gray-500 text-center">
-                Enter the 6-digit code sent to your {loginMethod === 'phone' ? 'mobile number' : 'email'}
+                Enter the 6-digit code sent to your mobile number
               </p>
             </div>
 
@@ -346,6 +388,8 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
             </div>
           </div>
         )}
+
+        <div id="recaptcha-container" />
       </div>
     </div>
   );
