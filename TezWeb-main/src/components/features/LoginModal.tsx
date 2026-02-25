@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { X, Smartphone, Shield, Loader2 } from 'lucide-react';
+import { X, Smartphone, Shield, Loader2, Mail } from 'lucide-react';
 import { sendOTP, verifyOTP } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -20,15 +20,18 @@ interface LoginModalProps {
 }
 
 type LoginStep = 'phone' | 'otp';
+type LoginMethod = 'phone' | 'email';
 
 export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps) {
   const navigate = useNavigate();
   const [step, setStep] = useState<LoginStep>('phone');
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('phone');
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [fullPhoneNumber, setFullPhoneNumber] = useState('');
+  const [identifier, setIdentifier] = useState('');
 
   const countryCodes = [
     { code: '+91', country: 'India', flag: '🇮🇳' },
@@ -39,21 +42,32 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
   ];
 
   const handleSendOTP = async () => {
-    // Validate phone number
-    if (phoneNumber.length < 10) {
-      toast.error('Please enter a valid phone number');
-      return;
+    if (loginMethod === 'phone') {
+      if (phoneNumber.length < 10) {
+        toast.error('Please enter a valid phone number');
+        return;
+      }
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim().toLowerCase())) {
+        toast.error('Please enter a valid email address');
+        return;
+      }
     }
 
     setIsLoading(true);
-    const fullPhone = `${countryCode}${phoneNumber}`;
-    setFullPhoneNumber(fullPhone);
+    const loginIdentifier =
+      loginMethod === 'phone'
+        ? `${countryCode}${phoneNumber}`
+        : email.trim().toLowerCase();
+
+    setIdentifier(loginIdentifier);
 
     try {
-      const result = await sendOTP(fullPhone);
+      const result = await sendOTP(loginIdentifier, loginMethod);
       
       if (result.success) {
-        toast.success('OTP sent to your phone!');
+        toast.success(`OTP sent to your ${loginMethod === 'phone' ? 'mobile number' : 'email'}!`);
         setStep('otp');
       } else {
         toast.error(result.message || 'Failed to send OTP');
@@ -75,7 +89,7 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
     setIsLoading(true);
 
     try {
-      const result = await verifyOTP(fullPhoneNumber, otp);
+      const result = await verifyOTP(identifier, otp, loginMethod);
       
       if (result.success && result.user) {
         toast.success('Login successful! 🎉');
@@ -102,6 +116,13 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
     setOtp('');
   };
 
+  const handleMethodChange = (method: LoginMethod) => {
+    setLoginMethod(method);
+    setPhoneNumber('');
+    setEmail('');
+    setOtp('');
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative animate-in zoom-in-95 duration-200">
@@ -117,18 +138,28 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full mb-4">
             {step === 'phone' ? (
-              <Smartphone className="w-8 h-8 text-white" />
+              loginMethod === 'phone' ? (
+                <Smartphone className="w-8 h-8 text-white" />
+              ) : (
+                <Mail className="w-8 h-8 text-white" />
+              )
             ) : (
               <Shield className="w-8 h-8 text-white" />
             )}
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {step === 'phone' ? 'Login with Mobile' : 'Verify OTP'}
+            {step === 'phone'
+              ? loginMethod === 'phone'
+                ? 'Login with Mobile'
+                : 'Login with Email'
+              : 'Verify OTP'}
           </h2>
           <p className="text-gray-600 text-sm">
             {step === 'phone' 
-              ? 'Enter your mobile number to continue'
-              : `We sent a code to ${fullPhoneNumber}`
+              ? loginMethod === 'phone'
+                ? 'Enter your mobile number to continue'
+                : 'Enter your email to continue'
+              : `We sent a code to ${identifier}`
             }
           </p>
         </div>
@@ -136,44 +167,88 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
         {/* Phone Number Step */}
         {step === 'phone' && (
           <div className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="country" className="text-sm font-semibold text-gray-700">
-                Country
-              </Label>
-              <Select value={countryCode} onValueChange={setCountryCode}>
-                <SelectTrigger className="h-12">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {countryCodes.map((item) => (
-                    <SelectItem key={item.code} value={item.code}>
-                      <span className="flex items-center gap-2">
-                        <span>{item.flag}</span>
-                        <span>{item.country}</span>
-                        <span className="text-gray-500">({item.code})</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 bg-gray-100 p-1 rounded-lg">
+              <Button
+                type="button"
+                variant={loginMethod === 'phone' ? 'default' : 'ghost'}
+                className="h-10"
+                onClick={() => handleMethodChange('phone')}
+              >
+                <Smartphone className="w-4 h-4 mr-2" />
+                Mobile
+              </Button>
+              <Button
+                type="button"
+                variant={loginMethod === 'email' ? 'default' : 'ghost'}
+                className="h-10"
+                onClick={() => handleMethodChange('email')}
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Email
+              </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="text-sm font-semibold text-gray-700">
-                Mobile Number
-              </Label>
-              <div className="flex gap-2">
-                <div className="flex items-center justify-center px-4 h-12 bg-gray-100 rounded-lg border border-gray-200 font-semibold text-gray-700">
-                  {countryCode}
+            {loginMethod === 'phone' ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="country" className="text-sm font-semibold text-gray-700">
+                    Country
+                  </Label>
+                  <Select value={countryCode} onValueChange={setCountryCode}>
+                    <SelectTrigger className="h-12">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {countryCodes.map((item) => (
+                        <SelectItem key={item.code} value={item.code}>
+                          <span className="flex items-center gap-2">
+                            <span>{item.flag}</span>
+                            <span>{item.country}</span>
+                            <span className="text-gray-500">({item.code})</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-sm font-semibold text-gray-700">
+                    Mobile Number
+                  </Label>
+                  <div className="flex gap-2">
+                    <div className="flex items-center justify-center px-4 h-12 bg-gray-100 rounded-lg border border-gray-200 font-semibold text-gray-700">
+                      {countryCode}
+                    </div>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="9876543210"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                      maxLength={10}
+                      className="h-12 text-base flex-1"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSendOTP();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-semibold text-gray-700">
+                  Email Address
+                </Label>
                 <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="9876543210"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                  maxLength={10}
-                  className="h-12 text-base flex-1"
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-12 text-base"
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                       handleSendOTP();
@@ -181,11 +256,16 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
                   }}
                 />
               </div>
-            </div>
+            )}
 
             <Button
               onClick={handleSendOTP}
-              disabled={isLoading || phoneNumber.length < 10}
+              disabled={
+                isLoading ||
+                (loginMethod === 'phone'
+                  ? phoneNumber.length < 10
+                  : email.trim().length === 0)
+              }
               className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold"
             >
               {isLoading ? (
@@ -200,8 +280,8 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-xs text-blue-800">
-                <strong>🔒 Secure Login:</strong> We'll send a 6-digit OTP to verify your number. 
-                Standard SMS rates may apply.
+                <strong>🔒 Secure Login:</strong> We send a 6-digit OTP to verify your{' '}
+                {loginMethod === 'phone' ? 'mobile number' : 'email'}.
               </p>
             </div>
           </div>
@@ -230,7 +310,7 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
                 autoFocus
               />
               <p className="text-xs text-gray-500 text-center">
-                Enter the 6-digit code sent to your phone
+                Enter the 6-digit code sent to your {loginMethod === 'phone' ? 'mobile number' : 'email'}
               </p>
             </div>
 
@@ -254,7 +334,7 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
                 onClick={handleBackToPhone}
                 className="text-blue-600 hover:text-blue-700 font-medium"
               >
-                ← Change Number
+                ← Change {loginMethod === 'phone' ? 'Number' : 'Email'}
               </button>
               <button
                 onClick={handleSendOTP}
@@ -263,12 +343,6 @@ export default function LoginModal({ onClose, onLoginSuccess }: LoginModalProps)
               >
                 Resend OTP
               </button>
-            </div>
-
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-xs text-yellow-800">
-                <strong>💡 Demo Mode:</strong> Enter any 6-digit code to verify (e.g., 123456)
-              </p>
             </div>
           </div>
         )}
