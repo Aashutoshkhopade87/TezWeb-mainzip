@@ -91,7 +91,8 @@
     "firebase": "^11.6.1",
     "express": "^4.21.2",
     "cors": "^2.8.5",
-    "razorpay": "^2.9.6"
+    "razorpay": "^2.9.6",
+    "dotenv": "^16.4.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
