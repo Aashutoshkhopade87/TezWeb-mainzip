@@ -152,7 +152,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Welcome Back!</h2>
-                <p className="text-gray-600">{user.phoneNumber}</p>
+                <p className="text-gray-600">{user.phoneNumber || user.email}</p>
                 <p className="text-sm text-gray-500">Member since {formatDate(user.createdAt)}</p>
               </div>
             </div>

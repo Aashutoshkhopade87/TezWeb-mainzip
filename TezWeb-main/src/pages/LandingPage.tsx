@@ -1,13 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Smartphone, Zap, Edit, Share2, LayoutDashboard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { isAuthenticated } from '@/lib/auth';
+import { completeEmailLinkLogin, isAuthenticated } from '@/lib/auth';
 import LoginModal from '@/components/features/LoginModal';
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = useState(false);
+
+
+  useEffect(() => {
+    const completeLogin = async () => {
+      const result = await completeEmailLinkLogin();
+      if (result.success) {
+        navigate('/dashboard');
+      }
+    };
+
+    completeLogin();
+  }, [navigate]);
 
   const handleCreateWebsite = () => {
     if (isAuthenticated()) {
