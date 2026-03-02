@@ -80,10 +80,24 @@ PORT=5000
 VITE_API_BASE_URL=http://localhost:5000
 VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_DATABASE_URL=
 VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_MEASUREMENT_ID=
+```
+
+> Keep `RAZORPAY_KEY_SECRET` only on backend. Do not expose it in frontend env vars.
+
+### Run frontend + payment backend
+
+```bash
+# terminal 1
+npm run server
+
+# terminal 2
+npm run dev
 ```
 
 > Keep `RAZORPAY_KEY_SECRET` only on backend. Do not expose it in frontend env vars.
