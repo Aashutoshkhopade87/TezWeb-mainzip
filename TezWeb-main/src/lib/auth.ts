@@ -6,7 +6,8 @@ import {
   signInWithPhoneNumber,
   type ConfirmationResult,
 } from 'firebase/auth';
-import { auth, hasFirebaseConfig } from './firebase';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { auth, db, hasFirebaseConfig } from './firebase';
 
 export interface User {
   uid: string;
@@ -53,15 +54,36 @@ const buildUser = (uid: string, identifier: string, method: LoginMethod): User =
   createdAt: new Date().toISOString(),
 });
 
+const syncUserToFirebase = async (user: User) => {
+  if (!hasFirebaseConfig || !db) return;
+
+  try {
+    await setDoc(
+      doc(db, 'users', user.uid),
+      {
+        uid: user.uid,
+        phoneNumber: user.phoneNumber || null,
+        email: user.email || null,
+        createdAt: user.createdAt,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error('Failed to sync user to Firebase:', error);
+  }
+};
+
 // Get current user from localStorage
 export const getCurrentUser = (): User | null => {
   const userData = localStorage.getItem('currentUser');
   return userData ? JSON.parse(userData) : null;
 };
 
-// Save user to localStorage
+// Save user to localStorage and Firebase
 export const saveUser = (user: User): void => {
   localStorage.setItem('currentUser', JSON.stringify(user));
+  void syncUserToFirebase(user);
 };
 
 // Clear user session
