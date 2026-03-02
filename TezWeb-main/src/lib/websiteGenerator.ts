@@ -1,22 +1,51 @@
+import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { BusinessCategory, GeneratorFormData, WebsiteData, TemplateStyle } from '@/types/website';
 import { CATEGORY_TEMPLATES } from '@/constants/templates';
 import { TEMPLATE_STYLES } from '@/constants/templateStyles';
 import { getCurrentUser } from './auth';
+import { db, hasFirebaseConfig } from './firebase';
+
+const syncWebsiteToFirebase = async (website: WebsiteData) => {
+  if (!hasFirebaseConfig || !db || !website.userId) return;
+
+  try {
+    await setDoc(
+      doc(db, 'websites', website.id),
+      {
+        ...website,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error('Failed to sync website to Firebase:', error);
+  }
+};
+
+const deleteWebsiteFromFirebase = async (websiteId: string) => {
+  if (!hasFirebaseConfig || !db) return;
+
+  try {
+    await deleteDoc(doc(db, 'websites', websiteId));
+  } catch (error) {
+    console.error('Failed to delete website from Firebase:', error);
+  }
+};
 
 export const generateWebsite = (formData: GeneratorFormData): WebsiteData => {
   const category = formData.category as BusinessCategory;
   const style = (formData.templateStyle as TemplateStyle) || 'modern';
-  
+
   // Use new template styles if available, fallback to old templates
-  const template = TEMPLATE_STYLES[category]?.[style] || 
-                   CATEGORY_TEMPLATES[category] || 
+  const template = TEMPLATE_STYLES[category]?.[style] ||
+                   CATEGORY_TEMPLATES[category] ||
                    CATEGORY_TEMPLATES.other;
 
   const currentUser = getCurrentUser();
-  
+
   // Combine country code with phone number
   const fullWhatsAppNumber = `${formData.whatsappCountryCode || '+91'}${formData.whatsappNumber}`;
-  
+
   const website: WebsiteData = {
     id: `website-${Date.now()}`,
     userId: currentUser?.uid,
@@ -66,18 +95,21 @@ export const generateWebsite = (formData: GeneratorFormData): WebsiteData => {
 export const saveWebsiteToStorage = (website: WebsiteData): void => {
   const updatedWebsite = { ...website, updatedAt: new Date().toISOString() };
   localStorage.setItem('currentWebsite', JSON.stringify(updatedWebsite));
-  
+
   // Save to list of websites
   const websites = getAllWebsites();
   const existingIndex = websites.findIndex(w => w.id === website.id);
-  
+
   if (existingIndex >= 0) {
     websites[existingIndex] = updatedWebsite;
   } else {
     websites.push(updatedWebsite);
   }
-  
+
   localStorage.setItem('websites', JSON.stringify(websites));
+
+  // Also sync website to Firebase for persistent cloud storage.
+  void syncWebsiteToFirebase(updatedWebsite);
 };
 
 export const getWebsiteFromStorage = (): WebsiteData | null => {
@@ -99,12 +131,15 @@ export const deleteWebsite = (websiteId: string): void => {
   const websites = getAllWebsites();
   const filteredWebsites = websites.filter(w => w.id !== websiteId);
   localStorage.setItem('websites', JSON.stringify(filteredWebsites));
-  
+
   // If current website is being deleted, clear it
   const currentWebsite = getWebsiteFromStorage();
   if (currentWebsite?.id === websiteId) {
     localStorage.removeItem('currentWebsite');
   }
+
+  // Also delete from Firebase.
+  void deleteWebsiteFromFirebase(websiteId);
 };
 
 export const loadWebsiteById = (websiteId: string): WebsiteData | null => {
