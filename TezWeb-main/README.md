@@ -100,4 +100,16 @@ npm run server
 npm run dev
 ```
 
+> Keep `RAZORPAY_KEY_SECRET` only on backend. Do not expose it in frontend env vars.
+
+### Run frontend + payment backend
+
+```bash
+# terminal 1
+npm run server
+
+# terminal 2
+npm run dev
+```
+
 If Firebase env vars are not provided, subscription state still works locally via localStorage.
