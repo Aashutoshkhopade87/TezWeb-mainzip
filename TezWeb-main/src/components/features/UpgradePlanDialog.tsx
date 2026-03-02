@@ -3,6 +3,7 @@ import { X, Crown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { upgradeToPro } from '@/lib/subscription';
+import { createRazorpayOrder } from '@/lib/payments';
 
 interface UpgradePlanDialogProps {
   userId: string;
@@ -37,20 +38,20 @@ export default function UpgradePlanDialog({ userId, onClose, onUpgraded }: Upgra
         return;
       }
 
-      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
-      if (!razorpayKey) {
-        toast.error('Missing Razorpay key. Set VITE_RAZORPAY_KEY_ID');
-        return;
-      }
+      // Create order on secure backend. Secret key stays only on server.
+      const { keyId, order } = await createRazorpayOrder(19900);
 
       const paymentObject = new window.Razorpay({
-        key: razorpayKey,
+        key: keyId,
         name: 'TezWeb',
         description: 'TezWeb Pro - ₹199 / Month',
-        amount: 19900,
-        currency: 'INR',
+        order_id: order.id,
+        amount: order.amount,
+        currency: order.currency,
         recurring: true,
-        handler: async () => {
+        handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+          // Payment success callback: log Razorpay payment id.
+          console.log('Razorpay payment success:', response.razorpay_payment_id);
           await upgradeToPro(userId);
           toast.success('Payment successful. Pro plan activated!');
           onUpgraded();
