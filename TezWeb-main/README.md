@@ -113,3 +113,21 @@ npm run dev
 ```
 
 If Firebase env vars are not provided, subscription state still works locally via localStorage.
+
+## TezWeb foundation (Phase 1)
+
+Project scaffolding now includes a clear split between mobile-first frontend experiences and backend API modules:
+
+- `src/components/features/PublicDashboard.tsx` for the unauthenticated dashboard showcasing 30-second generation UX.
+- `src/lib/api.ts` for typed frontend API helpers.
+- `server/routes/*` modular API endpoints for health, OTP auth flow, AI generation, publishing, and payments.
+- `server/config/env.js` for centralized environment configuration.
+
+### API endpoints scaffolded
+
+- `POST /api/auth/request-otp`
+- `POST /api/auth/verify-otp`
+- `POST /api/generate`
+- `POST /api/publish`
+- `POST /api/payments/create-order`
+- `GET /api/health`
